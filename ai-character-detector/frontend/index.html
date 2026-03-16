@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Character Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & tokens ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0c0f;
+      --surface:   #13151a;
+      --surface2:  #1c1f28;
+      --border:    #2a2e3d;
+      --text:      #e8eaf0;
+      --muted:     #6b7080;
+      --accent:    #5b7fff;
+      --accent-lo: rgba(91,127,255,.12);
+      --human:     #4ade80;
+      --cartoon:   #f472b6;
+      --ai:        #fb923c;
+      --radius:    14px;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+      --ease:      cubic-bezier(.4,0,.2,1);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 580px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    .header {
+      padding: 2rem 2.4rem 1.6rem;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(91,127,255,.15), transparent);
+      pointer-events: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-family: var(--mono);
+      font-size: .7rem;
+      color: var(--accent);
+      background: var(--accent-lo);
+      border: 1px solid rgba(91,127,255,.3);
+      border-radius: 999px;
+      padding: .25rem .75rem;
+      margin-bottom: 1rem;
+      letter-spacing: .04em;
+    }
+
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+    h1 {
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--text);
+      margin-bottom: .35rem;
+    }
+
+    .subtitle {
+      font-size: .875rem;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    /* ── Body ────────────────────────────────────────────── */
+    .body { padding: 2rem 2.4rem; }
+
+    /* ── Drop zone ───────────────────────────────────────── */
+    .dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface2);
+      cursor: pointer;
+      transition: border-color .2s var(--ease), background .2s var(--ease);
+      position: relative;
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .dropzone:hover,
+    .dropzone.drag-over {
+      border-color: var(--accent);
+      background: rgba(91,127,255,.06);
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 0;
+    }
+
+    .drop-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: var(--accent-lo);
+      border: 1px solid rgba(91,127,255,.25);
+      display: grid;
+      place-items: center;
+      font-size: 1.5rem;
+      transition: transform .2s var(--ease);
+    }
+
+    .dropzone:hover .drop-icon { transform: translateY(-2px); }
+
+    .drop-label {
+      font-size: .875rem;
+      color: var(--muted);
+    }
+
+    .drop-label strong { color: var(--accent); font-weight: 500; }
+
+    .drop-hint {
+      font-size: .75rem;
+      color: var(--border);
+      font-family: var(--mono);
+    }
+
+    /* Preview image inside dropzone */
+    .preview-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: calc(var(--radius) - 1px);
+      opacity: 0;
+      transition: opacity .3s var(--ease);
+    }
+
+    .preview-img.visible { opacity: 1; }
+
+    .preview-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(11,12,15,.8) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity .3s var(--ease);
+      border-radius: calc(var(--radius) - 1px);
+      display: flex;
+      align-items: flex-end;
+      padding: 1rem;
+    }
+
+    .preview-img.visible ~ .preview-overlay { opacity: 1; }
+
+    .preview-name {
+      font-family: var(--mono);
+      font-size: .7rem;
+      color: rgba(255,255,255,.8);
+    }
+
+    /* ── Submit button ───────────────────────────────────── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      width: 100%;
+      padding: .875rem 1.5rem;
+      margin-top: 1.25rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .15s var(--ease), background .2s;
+      letter-spacing: .01em;
+    }
+
+    .btn:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn.loading .spinner { display: block; }
+    .btn.loading .btn-text { display: none; }
+
+    /* ── Result panel ────────────────────────────────────── */
+    .result {
+      margin-top: 1.5rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      display: none;
+      animation: slideUp .3s var(--ease);
+    }
+
+    .result.visible { display: block; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-top {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .result-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .result-icon.human    { background: rgba(74,222,128,.12); }
+    .result-icon.cartoon  { background: rgba(244,114,182,.12); }
+    .result-icon.ai       { background: rgba(251,146,60,.12); }
+
+    .result-label {
+      font-size: .7rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: .2rem;
+    }
+
+    .result-prediction {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .result-prediction.human   { color: var(--human); }
+    .result-prediction.cartoon { color: var(--cartoon); }
+    .result-prediction.ai      { color: var(--ai); }
+
+    .result-confidence {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: .1rem;
+    }
+
+    /* ── Probability bars ────────────────────────────────── */
+    .probs { display: flex; flex-direction: column; gap: .6rem; }
+
+    .prob-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 52px;
+      align-items: center;
+      gap: .75rem;
+    }
+
+    .prob-name {
+      font-size: .8rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .prob-track {
+      height: 5px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .prob-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width .7s var(--ease);
+      width: 0%;
+    }
+
+    .prob-fill.human   { background: var(--human); }
+    .prob-fill.cartoon { background: var(--cartoon); }
+    .prob-fill.ai      { background: var(--ai); }
+
+    .prob-pct {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* ── Grad-CAM toggle ─────────────────────────────────── */
+    .gradcam-toggle {
+      margin-top: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    .gradcam-toggle input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px; height: 15px;
+      cursor: pointer;
+    }
+
+    .gradcam-wrap {
+      margin-top: 1rem;
+      border-radius: calc(var(--radius) - 4px);
+      overflow: hidden;
+      display: none;
+    }
+
+    .gradcam-wrap.visible { display: block; animation: slideUp .3s var(--ease); }
+
+    .gradcam-wrap img {
+      width: 100%;
+      display: block;
+      border-radius: calc(var(--radius) - 4px);
+    }
+
+    .gradcam-label {
+      font-family: var(--mono);
+      font-size: .65rem;
+      color: var(--muted);
+      margin-top: .5rem;
+      text-align: center;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .footer {
+      padding: 1.2rem 2.4rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-tag {
+      font-family: var(--mono);
+      font-size: .65rem;
+      color: var(--border);
+    }
+
+    /* ── Error toast ─────────────────────────────────────── */
+    .error {
+      margin-top: 1rem;
+      padding: .875rem 1rem;
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: var(--radius);
+      font-size: .82rem;
+      color: #fca5a5;
+      display: none;
+      animation: slideUp .25s var(--ease);
+    }
+
+    .error.visible { display: block; }
+  </style>
+</head>
+
+<body>
+<div class="page">
+  <div class="card">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="badge"><span class="badge-dot"></span>v1.0 — PyTorch</div>
+      <h1>AI Character Detector</h1>
+      <p class="subtitle">Upload any image — find out if it's real, drawn, or machine-made.</p>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+
+      <!-- Drop zone -->
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/bmp" />
+        <img class="preview-img" id="previewImg" alt="preview" />
+        <div class="preview-overlay"><span class="preview-name" id="previewName"></span></div>
+
+        <div class="drop-icon" id="dropIcon">📁</div>
+        <div class="drop-label" id="dropLabel">
+          <strong>Click to browse</strong> or drag &amp; drop
+        </div>
+        <div class="drop-hint">JPG · PNG · WebP · BMP · max 10 MB</div>
+      </div>
+
+      <!-- Grad-CAM toggle -->
+      <div class="gradcam-toggle">
+        <input type="checkbox" id="gradcamToggle" />
+        <label for="gradcamToggle">Include Grad-CAM heatmap (slower)</label>
+      </div>
+
+      <!-- Error -->
+      <div class="error" id="errorBox"></div>
+
+      <!-- Submit -->
+      <button class="btn" id="submitBtn" disabled>
+        <span class="spinner"></span>
+        <span class="btn-text">Classify Image</span>
+      </button>
+
+      <!-- Result -->
+      <div class="result" id="resultPanel">
+
+        <div class="result-top">
+          <div class="result-icon" id="resultIcon">❓</div>
+          <div>
+            <div class="result-label">Prediction</div>
+            <div class="result-prediction" id="resultPrediction">—</div>
+            <div class="result-confidence" id="resultConf">—</div>
+          </div>
+        </div>
+
+        <div class="probs" id="probList"></div>
+
+        <!-- Grad-CAM output -->
+        <div class="gradcam-wrap" id="gradcamWrap">
+          <img id="gradcamImg" src="" alt="Grad-CAM heatmap" />
+          <div class="gradcam-label">Grad-CAM — regions that influenced the prediction</div>
+        </div>
+      </div>
+
+    </div><!-- /.body -->
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="footer-tag">POST /predict</span>
+      <span class="footer-tag" id="inferenceTime"></span>
+    </div>
+
+  </div><!-- /.card -->
+</div><!-- /.page -->
+
+<script>
+  // ── DOM refs ────────────────────────────────────────────
+  const dropzone     = document.getElementById('dropzone');
+  const fileInput    = document.getElementById('fileInput');
+  const previewImg   = document.getElementById('previewImg');
+  const previewName  = document.getElementById('previewName');
+  const dropIcon     = document.getElementById('dropIcon');
+  const dropLabel    = document.getElementById('dropLabel');
+  const submitBtn    = document.getElementById('submitBtn');
+  const resultPanel  = document.getElementById('resultPanel');
+  const resultIcon   = document.getElementById('resultIcon');
+  const resultPred   = document.getElementById('resultPrediction');
+  const resultConf   = document.getElementById('resultConf');
+  const probList     = document.getElementById('probList');
+  const errorBox     = document.getElementById('errorBox');
+  const gradcamToggle= document.getElementById('gradcamToggle');
+  const gradcamWrap  = document.getElementById('gradcamWrap');
+  const gradcamImg   = document.getElementById('gradcamImg');
+  const inferenceTime= document.getElementById('inferenceTime');
+
+  let selectedFile = null;
+
+  const CLASS_META = {
+    human:        { icon: '👤', cls: 'human',   label: 'Real Human' },
+    cartoon:      { icon: '🎨', cls: 'cartoon',  label: 'Cartoon / Anime' },
+    ai_generated: { icon: '🤖', cls: 'ai',       label: 'AI Generated' },
+  };
+
+  // ── File selection ───────────────────────────────────────
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile(file) {
+    selectedFile = file;
+    submitBtn.disabled = false;
+    hideError();
+    hideResult();
+
+    // Preview
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src = e.target.result;
+      previewImg.classList.add('visible');
+      previewName.textContent = file.name;
+      dropIcon.style.display  = 'none';
+      dropLabel.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Submit ───────────────────────────────────────────────
+  submitBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    setLoading(true);
+    hideError();
+    hideResult();
+
+    const useGradcam = gradcamToggle.checked;
+    const endpoint   = useGradcam ? '/predict/gradcam' : '/predict';
+    const formData   = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch(endpoint, { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+      showResult(data, useGradcam);
+    } catch (err) {
+      showError(err.message || 'Request failed. Is the server running?');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // ── Render result ────────────────────────────────────────
+  function showResult(data, withGradcam) {
+    const meta = CLASS_META[data.class_key] || { icon: '❓', cls: '', label: data.prediction };
+
+    // Icon + prediction
+    resultIcon.textContent = meta.icon;
+    resultIcon.className   = `result-icon ${meta.cls}`;
+    resultPred.textContent = data.prediction;
+    resultPred.className   = `result-prediction ${meta.cls}`;
+    resultConf.textContent = `${(data.confidence * 100).toFixed(1)}% confidence`;
+
+    // Probability bars
+    probList.innerHTML = '';
+    const order = ['human', 'cartoon', 'ai_generated'];
+    const names = { human: 'Real Human', cartoon: 'Cartoon / Anime', ai_generated: 'AI Generated' };
+    const clsMap = { human: 'human', cartoon: 'cartoon', ai_generated: 'ai' };
+
+    order.forEach(key => {
+      const prob = data.probabilities[key] ?? 0;
+      const pct  = (prob * 100).toFixed(1);
+      const row  = document.createElement('div');
+      row.className = 'prob-row';
+      row.innerHTML = `
+        <span class="prob-name">${names[key]}</span>
+        <div class="prob-track">
+          <div class="prob-fill ${clsMap[key]}" data-pct="${prob * 100}"></div>
+        </div>
+        <span class="prob-pct">${pct}%</span>
+      `;
+      probList.appendChild(row);
+    });
+
+    // Animate bars after paint
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelectorAll('.prob-fill').forEach(el => {
+        el.style.width = el.dataset.pct + '%';
+      });
+    }));
+
+    // Grad-CAM
+    if (withGradcam && data.gradcam_base64) {
+      gradcamImg.src = 'data:image/png;base64,' + data.gradcam_base64;
+      gradcamWrap.classList.add('visible');
+    } else {
+      gradcamWrap.classList.remove('visible');
+    }
+
+    // Inference time
+    if (data.inference_ms) {
+      inferenceTime.textContent = `${data.inference_ms.toFixed(0)} ms`;
+    }
+
+    resultPanel.classList.add('visible');
+  }
+
+  // ── Helpers ──────────────────────────────────────────────
+  function setLoading(on) {
+    submitBtn.classList.toggle('loading', on);
+    submitBtn.disabled = on;
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.classList.add('visible');
+  }
+
+  function hideError()  { errorBox.classList.remove('visible'); }
+  function hideResult() { resultPanel.classList.remove('visible'); }
+</script>
+</body>
+</html>
