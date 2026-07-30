@@ -134,7 +134,9 @@ python predict.py --image photo.jpg --gradcam
 python predict.py --folder data/test_images/
 ```
 
-### 6. Start the API
+### 6. Start the Frontend and API
+
+The frontend (HTML/CSS/JS) is automatically served by the FastAPI backend. You do not need a separate frontend server.
 
 ```bash
 uvicorn src.api.server:app --reload --host 0.0.0.0 --port 8000
@@ -222,7 +224,15 @@ training:
 
 ---
 
-## Model Architecture
+## System Architecture
+
+The project consists of three main components:
+
+1. **Frontend**: A lightweight, responsive web UI built with vanilla HTML, CSS, and JavaScript. It allows users to upload images and view classification results and Grad-CAM heatmaps.
+2. **Backend API**: A FastAPI REST server that handles image uploads, runs inference, and serves the frontend static files.
+3. **Model**: A PyTorch deep learning model (ResNet50 or EfficientNet-B0) trained to classify images into three categories.
+
+### Model Architecture
 
 ```
 Input image (224×224×3)

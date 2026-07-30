@@ -35,11 +35,19 @@ from src.utils.image_validator import ImageValidationError
 
 
 # ---------------------------------------------------------------------------
+# Resolve project root from this file (src/api/server.py → project root)
+# ---------------------------------------------------------------------------
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+# ---------------------------------------------------------------------------
 # Config & global predictor
 # ---------------------------------------------------------------------------
 
 def _load_cfg(path: str = "config.yaml") -> dict:
-    with open(path) as f:
+    cfg_path = _PROJECT_ROOT / path
+    with open(cfg_path) as f:
         return yaml.safe_load(f)
 
 
@@ -84,8 +92,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve the frontend
-_frontend = Path("frontend")
+# Serve the frontend assets (CSS, JS) from the frontend/ directory
+_frontend = _PROJECT_ROOT / "frontend"
 if _frontend.exists():
     app.mount("/static", StaticFiles(directory=str(_frontend)), name="static")
 
@@ -119,7 +127,7 @@ class HealthResponse(BaseModel):
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
 async def root():
     """Serve the frontend HTML page."""
-    index = Path("frontend/index.html")
+    index = _PROJECT_ROOT / "frontend" / "index.html"
     if index.exists():
         return HTMLResponse(content=index.read_text(encoding="utf-8"), status_code=200)
     return HTMLResponse(
